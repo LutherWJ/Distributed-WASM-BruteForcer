@@ -5,7 +5,7 @@ export function useOrchestrator() {
   // state
   let targetPass = "";
   let targetHash: Uint8Array;
-  const workers = new Map<string, number>(); // Map socketIDs to Job index
+  const workers = new Map<string, number[]>(); // Map socketIDs to Job indices
   const pendingJobs = new Set<number>(); // Holds high priority requeued jobs
   const completedJobs = new Set<number>();
 
@@ -32,7 +32,7 @@ export function useOrchestrator() {
 
   function registerWorker(socketID: string) {
     console.log(`[Orchestrator] Worker connected: ${socketID}`);
-    workers.set(socketID, -1);
+    workers.set(socketID, []);
   }
 
   function getTargetHash() {
@@ -40,22 +40,26 @@ export function useOrchestrator() {
   }
 
   function removeWorker(socketID: string) {
-    const job = workers.get(socketID);
-    console.log(
-      `[Orchestrator] Worker ${socketID} has disconnected. Requeueing Job #${job}`,
-    );
-    if (job) {
-      pendingJobs.add(job);
+    const jobs = workers.get(socketID);
+    if (jobs) {
+      for (const job of jobs) {
+        console.log(
+          `[Orchestrator] Worker ${socketID} has disconnected. Requeueing Job #${job}`,
+        );
+        pendingJobs.add(job);
+      }
     }
     workers.delete(socketID);
   }
 
   function completeJob(socketID: string) {
-    const job = workers.get(socketID);
-    if (job) {
-      completedJobs.add(job);
+    const jobs = workers.get(socketID);
+    if (jobs && jobs.length > 0) {
+      const job = jobs.shift();
+      if (job !== undefined) {
+        completedJobs.add(job);
+      }
     }
-    workers.delete(socketID);
   }
 
   function validateSolution(password: string): boolean {
@@ -72,16 +76,21 @@ export function useOrchestrator() {
   function getJob(socketID: string): number {
     if (isSolved) return -1;
 
+    let jobIndex = -1;
     const recycled = pendingJobs.values().next().value;
     if (recycled !== undefined) {
       pendingJobs.delete(recycled);
-      return recycled;
+      jobIndex = recycled;
+    } else if (nextJobIndex < totalBatches) {
+      jobIndex = nextJobIndex++;
     }
 
-    if (nextJobIndex < totalBatches) {
-      const job = nextJobIndex++;
-      workers.set(socketID, job);
-      return job;
+    if (jobIndex !== -1) {
+      const userJobs = workers.get(socketID);
+      if (userJobs) {
+        userJobs.push(jobIndex);
+      }
+      return jobIndex;
     }
 
     return -1; // No new jobs

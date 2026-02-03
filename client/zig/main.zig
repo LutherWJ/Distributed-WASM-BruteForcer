@@ -8,6 +8,7 @@ const CrackError = error{
 
 var attempts: u32 = 0;
 var found_password: [64]u8 = undefined;
+var input_buffer: [256]u8 = undefined;
 
 export fn crack(target_ptr: [*]const u8, target_len: usize, charset_ptr: [*]const u8, charset_len: usize, password_length: u32, job_start: u32, job_range: u32) bool {
     const target = target_ptr[0..target_len];
@@ -40,6 +41,10 @@ export fn get_count_ptr() *u32 {
 
 export fn get_password_ptr() [*]u8 {
     return &found_password;
+}
+
+export fn get_input_buffer_ptr() [*]u8 {
+    return &input_buffer;
 }
 
 fn hash_and_check(target: []const u8, buf: []u8) bool {

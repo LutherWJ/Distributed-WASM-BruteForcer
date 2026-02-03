@@ -18,6 +18,9 @@ const countViews: Uint32Array[] = [];
 let readyWorkers = 0; // Count of workers finished with initialization
 let completedWorkers = 0; // Count of workers who have completed their job
 let startTime: number | null = null;
+const jobQueue: Job[] = [];
+const MAX_QUEUE_SIZE = 2;
+let isProcessing = false;
 
 // Web socket
 const socket = io();
@@ -37,6 +40,36 @@ socket.on("disconnect", () => {
 socket.on("connect_error", (err) => {
   console.error("[Main] Socket connection error:", err);
 });
+
+function processQueue() {
+  if (isProcessing || jobQueue.length === 0) return;
+
+  const job = jobQueue.shift();
+  if (!job) return;
+
+  isProcessing = true;
+  completedWorkers = 0;
+
+  if (startTime === null) {
+    startTime = Date.now();
+  }
+
+  // Split the workload among threads
+  const jobSplit = Math.floor(job.size / threadCount);
+  const extra = job.size % threadCount;
+
+  for (let i = 0; i < threadCount; i++) {
+    const pad = i === threadCount - 1 ? extra : 0;
+
+    workers[i]!.postMessage({
+      size: jobSplit + pad,
+      index: job.index + jobSplit * i,
+      length: job.length,
+      target: job.target,
+      charset: job.charset,
+    });
+  }
+}
 
 for (let i = 0; i < threadCount; i++) {
   workers[i] = new Worker("./worker.js");
@@ -60,6 +93,8 @@ for (let i = 0; i < threadCount; i++) {
         completedWorkers++;
         if (completedWorkers === threadCount) {
           socket.emit("job-completed");
+          isProcessing = false;
+          processQueue();
         }
         break;
       case "error":
@@ -79,26 +114,10 @@ setInterval(() => {
 }, 100);
 
 socket.on("job", (job: Job) => {
-  completedWorkers = 0;
-
-  if (startTime === null) {
-    startTime = Date.now();
-  }
-
-  // Split the workload among threads
-  const jobSplit = Math.floor(job.size / threadCount);
-  const extra = job.size % threadCount;
-
-  for (let i = 0; i < threadCount; i++) {
-    const pad = i === threadCount - 1 ? extra : 0;
-
-    workers[i]!.postMessage({
-      size: jobSplit + pad,
-      index: job.index + jobSplit * i,
-      length: job.length,
-      target: job.target,
-      charset: job.charset,
-    });
+  jobQueue.push(job);
+  processQueue();
+  if (jobQueue.length + (isProcessing ? 1 : 0) < MAX_QUEUE_SIZE) {
+    socket.emit("ready");
   }
 });
 

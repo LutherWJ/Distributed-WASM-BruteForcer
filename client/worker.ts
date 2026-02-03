@@ -7,6 +7,7 @@ declare var self: Worker;
 // Declare globals from the Wasm instance
 let wasm: any;
 let exports: any;
+let wasmMemory: WebAssembly.Memory;
 
 // Initialize Wasm once
 (async () => {
@@ -14,6 +15,7 @@ let exports: any;
   const wasmCtx = await initWasm();
   wasm = wasmCtx.instance;
   exports = wasm.exports;
+  wasmMemory = wasmCtx.memory;
 
   const attemptsPtr = exports.get_count_ptr();
   console.log("[Worker] WASM ready, sending buffer and pointer");
@@ -29,17 +31,28 @@ self.onmessage = (event: MessageEvent) => {
   const encoder = new TextEncoder();
   const charset = encoder.encode(job.charset);
 
-  if (!wasm) {
+  if (!wasm || !wasmMemory) {
     console.error("WASM not initialized");
     return;
   }
 
   try {
+    const inputPtr = exports.get_input_buffer_ptr();
+    const mem = new Uint8Array(wasmMemory.buffer);
+    
+    // Copy target (32 bytes)
+    // job.target might be an ArrayBuffer or Uint8Array depending on transport
+    const targetArray = new Uint8Array(job.target); 
+    mem.set(targetArray, inputPtr);
+
+    // Copy charset (after 32 bytes)
+    mem.set(charset, inputPtr + 32);
+
     // @ts-ignore
     const found = exports.crack(
-      job.target,
+      inputPtr,
       32, // Hash is 32 bytes long
-      charset,
+      inputPtr + 32,
       charset.length,
       job.length,
       job.index,
@@ -50,12 +63,14 @@ self.onmessage = (event: MessageEvent) => {
     if (found) {
       const passPtr = exports.get_password_ptr();
       const passBuf = new Uint8Array(
-        exports.memory.buffer,
+        wasmMemory.buffer,
         passPtr,
         job.length,
       );
+      // Create a non-shared copy because TextDecoder doesn't support SharedArrayBuffer
+      const passCopy = new Uint8Array(passBuf);
       const decoder = new TextDecoder();
-      password = decoder.decode(passBuf);
+      password = decoder.decode(passCopy);
       console.log("[Worker] Password found:", password);
       self.postMessage({ type: "found", password: password });
       return;
