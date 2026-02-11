@@ -1,13 +1,19 @@
 import express from "express";
-import {Server as SocketIOServer} from "socket.io";
+import { Server as SocketIOServer } from "socket.io";
 import { createServer } from "http";
-import {Server as Engine} from 'socket.io-bun'
+import { Server as Engine } from "socket.io-bun";
 import * as path from "node:path";
 import { initSocket } from "./socket";
 
-
 const app = express();
 const port = 8080;
+
+// Create HTTPS server
+
+const options = {
+    cert: Bun.file('../certs/server.crt'),
+    key: Bun.file('../certs/server.key');
+}
 
 const httpServer = createServer(app);
 

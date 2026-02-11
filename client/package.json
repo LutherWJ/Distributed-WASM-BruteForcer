@@ -11,9 +11,6 @@
     "socket.io-client": "^4.8.3"
   },
   "scripts": {
-    "clean": "rm -rf public",
-    "build:wasm": "cd zig && zig build -Doptimize=ReleaseSmall",
-    "build:js": "bun build ./index.ts ./worker.ts --outdir ./public --target browser --minify",
-    "build": "bun run clean && mkdir -p public && bun run build:wasm && bun run build:js && cp index.html public/ && cp zig/zig-out/bin/main.wasm public/"
+    "build": "bun run build.ts"
   }
 }

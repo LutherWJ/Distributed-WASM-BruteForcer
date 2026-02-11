@@ -4,12 +4,10 @@ const PAGE_SIZE = 65536;
 
 declare var self: Worker;
 
-// Declare globals from the Wasm instance
 let wasm: any;
 let exports: any;
 let wasmMemory: WebAssembly.Memory;
 
-// Initialize Wasm once
 (async () => {
   console.log("[Worker] Initializing WASM...");
   const wasmCtx = await initWasm();
@@ -39,10 +37,9 @@ self.onmessage = (event: MessageEvent) => {
   try {
     const inputPtr = exports.get_input_buffer_ptr();
     const mem = new Uint8Array(wasmMemory.buffer);
-    
+
     // Copy target (32 bytes)
-    // job.target might be an ArrayBuffer or Uint8Array depending on transport
-    const targetArray = new Uint8Array(job.target); 
+    const targetArray = new Uint8Array(job.target);
     mem.set(targetArray, inputPtr);
 
     // Copy charset (after 32 bytes)
@@ -62,11 +59,8 @@ self.onmessage = (event: MessageEvent) => {
     let password: string | undefined;
     if (found) {
       const passPtr = exports.get_password_ptr();
-      const passBuf = new Uint8Array(
-        wasmMemory.buffer,
-        passPtr,
-        job.length,
-      );
+      const passBuf = new Uint8Array(wasmMemory.buffer, passPtr, job.length);
+
       // Create a non-shared copy because TextDecoder doesn't support SharedArrayBuffer
       const passCopy = new Uint8Array(passBuf);
       const decoder = new TextDecoder();

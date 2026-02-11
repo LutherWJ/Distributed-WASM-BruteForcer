@@ -7,6 +7,24 @@ export type Job = {
 };
 
 export type TelemetryData = {
-    hps: number, // Hashes per second
-    numHashes: number, // Raw number of hashes sometimes periodical sometimes grand total.
+    hps: number; // Hashes per second
+    numHashes: number; // Raw number of hashes sometimes periodical sometimes grand total.
+    name: string; // Name of the worker
+}
+
+export type WorkerStats = {
+    id: string;
+    name: string;
+    hps: number;
+    numHashes: number;
+}
+
+export type GlobalTelemetry = {
+    totalHps: number;
+    totalHashes: number;
+    workers: WorkerStats[];
+    progress: {
+        completed: number;
+        total: number;
+    };
 }

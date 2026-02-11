@@ -1,14 +1,9 @@
-import type { Socket } from "socket.io";
+import type { Socket, Server as SocketIOServer } from "socket.io";
 import config from "../../config";
 import type { Orchestrator } from "../services/orchestrator";
 import type { Job } from "../../types";
 
-export function handleJobCompletion(
-  socket: Socket,
-  orchestrator: Orchestrator,
-) {
-  orchestrator.completeJob(socket.id);
-
+export function assignJob(socket: Socket, orchestrator: Orchestrator) {
   const index = orchestrator.getJob(socket.id);
   if (index === -1) {
     return;
@@ -25,12 +20,37 @@ export function handleJobCompletion(
   socket.emit("job", job);
 }
 
-export function handleSolution(
+export function assignJobs(io: SocketIOServer, orchestrator: Orchestrator) {
+  io.sockets.sockets.forEach((socket) => {
+    assignJob(socket, orchestrator);
+  });
+}
+
+export function handleJobCompletion(
   socket: Socket,
   orchestrator: Orchestrator,
+) {
+  orchestrator.completeJob(socket.id);
+  assignJob(socket, orchestrator);
+}
+
+import { type Telemetry } from "../services/telemetry";
+
+export function handleSolution(
+  io: SocketIOServer,
+  socket: Socket,
+  orchestrator: Orchestrator,
+  telemetry: Telemetry,
   password: string,
 ) {
   const isValid = orchestrator.validateSolution(password);
   if (!isValid) return;
-  socket.emit("found", password);
+
+  const stats = telemetry.getGlobalStats({ completed: 0, total: 0 });
+  const winner = stats.workers.find(w => w.id === socket.id)?.name || "Unknown";
+
+  io.emit("solution-found", {
+    password,
+    winner,
+  });
 }

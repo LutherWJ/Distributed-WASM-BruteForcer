@@ -15,6 +15,7 @@ export function useOrchestrator() {
   let isSolved = false;
 
   function init() {
+    isSolved = false;
     targetPass = generatePassword(config.passwordLength);
     targetHash = new Bun.CryptoHasher("sha256").update(targetPass).digest();
     console.log(`[Orchestrator] Target Password: ${targetPass}`);
@@ -28,6 +29,16 @@ export function useOrchestrator() {
 
     console.log(`[Orchestrator] Search space: ${possibilities} combinations`);
     console.log(`[Orchestrator] Total batches: ${totalBatches}`);
+  }
+
+  function reset() {
+    targetPass = '';
+    workers.clear();
+    pendingJobs.clear();
+    completedJobs.clear();
+    nextJobIndex = 0;
+    totalBatches = 0;
+    isSolved = true;
   }
 
   function registerWorker(socketID: string) {
@@ -96,14 +107,23 @@ export function useOrchestrator() {
     return -1; // No new jobs
   }
 
+  function getProgress() {
+    return {
+      completed: completedJobs.size,
+      total: totalBatches,
+    };
+  }
+
   return {
     getTargetHash,
     init,
+    reset,
     registerWorker,
     removeWorker,
     getJob,
     completeJob,
     validateSolution,
+    getProgress,
   };
 }
 

@@ -1,47 +1,70 @@
-import type { TelemetryData } from "../../types.ts";
+import type { TelemetryData, GlobalTelemetry, WorkerStats } from "../../types.ts";
 
 export function useTelemetry() {
-  const workers = new Map<string, TelemetryData>();
-  const retired: number[] = []; // array of past totals
+  const workers = new Map<string, { name: string; hps: number; numHashes: number }>();
+  let retiredHashes = 0;
 
   function registerWorker(socketID: string) {
-    workers.set(socketID, { hps: 0, numHashes: 0 });
+    workers.set(socketID, { name: "Anonymous", hps: 0, numHashes: 0 });
   }
 
   function update(socketID: string, data: TelemetryData) {
-    workers.set(socketID, data);
+    workers.set(socketID, {
+      name: data.name,
+      hps: data.hps,
+      numHashes: data.numHashes,
+    });
   }
 
   function removeWorker(socketID: string) {
-    retired.push(workers.get(socketID)!.numHashes);
-    workers.delete(socketID);
+    const stats = workers.get(socketID);
+    if (stats) {
+      retiredHashes += stats.numHashes;
+      workers.delete(socketID);
+    }
   }
 
-  function getTotal(): number {
-    let total = 0;
-    workers.values().forEach((data) => {
-      total += data.numHashes;
-    });
-    retired.forEach((num) => (total += num));
-    return total;
+  function getGlobalStats(progress: { completed: number; total: number }): GlobalTelemetry {
+    let totalHps = 0;
+    let totalHashes = retiredHashes;
+    const workerList: WorkerStats[] = [];
+
+    for (const [id, stats] of workers.entries()) {
+      totalHps += stats.hps;
+      totalHashes += stats.numHashes;
+      workerList.push({
+        id,
+        name: stats.name,
+        hps: stats.hps,
+        numHashes: stats.numHashes,
+      });
+    }
+
+    // Sort workers by contribution (total hashes) for leaderboard
+    workerList.sort((a, b) => b.numHashes - a.numHashes);
+
+    return {
+      totalHps,
+      totalHashes,
+      workers: workerList,
+      progress,
+    };
   }
 
-  // Returns the CURRENT hashes per second
-  function getHPS(): number {
-    let hps = 0;
-    workers.values().forEach((data) => {
-      hps += data.hps;
-    });
-    return hps;
+  function reset() {
+    retiredHashes = 0;
+    for (const [id, stats] of workers.entries()) {
+      workers.set(id, { name: stats.name, hps: 0, numHashes: 0 });
+    }
   }
 
   return {
     registerWorker,
     removeWorker,
     update,
-    getTotal,
-    getHPS,
+    getGlobalStats,
+    reset,
   };
 }
 
-export type Telemetry = ReturnType<typeof useTelemetry>
+export type Telemetry = ReturnType<typeof useTelemetry>;
