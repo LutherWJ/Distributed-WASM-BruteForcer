@@ -98,7 +98,6 @@ async function initWasm(): Promise<WasmContext> {
   const res = await fetch("./main.wasm");
   const buf = await res.arrayBuffer();
   const wasm = await WebAssembly.instantiate(buf, importObject);
-
   return {
     instance: wasm.instance,
     memory: memory,

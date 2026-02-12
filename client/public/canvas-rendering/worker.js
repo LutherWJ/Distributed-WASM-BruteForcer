@@ -1,0 +1,1 @@
+self.onmessage=(p)=>{let f=p.data.canvas,b=f.getContext("2d");if(!b)return;function j(l){let q=150+Math.cos(l/500)*100,u=150+Math.sin(l/500)*100;b.clearRect(0,0,f.width,f.height),b.fillStyle="blue",b.beginPath(),b.arc(q,u,50,0,Math.PI*2),b.fill(),requestAnimationFrame(j)}requestAnimationFrame(j)};

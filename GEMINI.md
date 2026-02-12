@@ -1,62 +1,62 @@
-# Project Overview: WasmDemo2
+# Project Overview: WasmDemos
 
-`WasmDemo2` is a distributed SHA-256 password cracking application designed to demonstrate high-performance computing in the browser. It uses a Bun-based server to orchestrate work across multiple browser clients, each utilizing Web Workers and Zig-compiled WebAssembly (Wasm) for parallelized hash searching.
+`WasmDemos` is a collection of high-performance computing demonstrations using Zig-compiled WebAssembly (Wasm), Web Workers, and Bun. The project showcases the power of Wasm in scenarios like image processing, distributed computing, and real-time audio analysis.
 
 ## Architecture
 
-### Server (`server/`)
-- **Runtime:** [Bun](https://bun.sh)
-- **Frameworks:** Express (HTTP), Socket.io (Real-time communication).
-- **Orchestration:**
-    - Generates a random target password and its SHA-256 hash on startup.
-    - Divides the search space (defined by `charset` and `passwordLength`) into batches of `jobSize`.
-    - Distributes these "jobs" to connected clients via Socket.io.
-    - Tracks worker status and re-queues jobs if a client disconnects.
-    - Collects and broadcasts real-time telemetry (Hashes Per Second, Total Hashes).
+The project is structured as a monorepo with a separate client and server.
 
 ### Client (`client/`)
-- **Technology:** TypeScript, Bun (Bundler), Web Workers, WebAssembly.
-- **Concurrency:** Spawns a pool of Web Workers equal to `navigator.hardwareConcurrency`.
-- **Worker Management:**
-    - Each Worker initializes a dedicated Zig/Wasm instance.
-    - Communicates with the Main thread via `postMessage` for job assignment and result reporting.
-    - Uses `SharedArrayBuffer` to provide the Main thread with direct, low-latency access to the `attempts` counter in Wasm memory.
+- **Technology:** TypeScript, Bun (Bundler), Web Workers, WebAssembly (Zig).
+- **Structure:**
+    - `demos/`: Contains individual demonstration projects.
+    - `public/`: Output directory for the build process, served by the server.
+- **Key Demos:**
+    - `demo1/` (Blur Comparison): Compares a Box Blur algorithm implemented in both JavaScript and Zig/Wasm using `SharedArrayBuffer` for zero-copy data sharing.
+    - `demo2/` (Distributed Password Cracker): A distributed SHA-256 cracker that coordinates work across multiple browser clients via Socket.io.
+    - `demo3/` (Audio Visualizer): Real-time audio visualization using FFT (Fast Fourier Transform) implemented in Zig/Wasm.
+    - `admin/`: A simple dashboard to control the distributed cracker (start/stop jobs).
 
-### Wasm (`client/zig/`)
-- **Language:** [Zig](https://ziglang.org)
-- **Logic:** Implements the core SHA-256 hashing and comparison loop using Zig's standard library (`std.crypto.hash.sha2.Sha256`).
-- **Memory:** Managed via exported pointers, allowing the JS side to read/write search targets and results directly.
+### Server (`server/`)
+- **Runtime:** [Bun](https://bun.sh)
+- **Frameworks:** Express (HTTP), Socket.io (Real-time orchestration).
+- **Responsibilities:**
+    - Serves static files from `client/public`.
+    - Manages the search space for the distributed password cracker.
+    - Broadcasts real-time telemetry (hashes/sec, progress) to all connected clients.
+    - Ensures `Cross-Origin-Opener-Policy: same-origin` and `Cross-Origin-Embedder-Policy: require-corp` headers are set to enable `SharedArrayBuffer`.
 
 ## Building and Running
 
 ### Prerequisites
-- [Bun](https://bun.sh) installed.
-- [Zig](https://ziglang.org) installed (for building Wasm).
+- [Bun](https://bun.sh)
+- [Zig](https://ziglang.org) (v0.13.0 or compatible)
 
 ### Installation
-Run the following in the project root (and potentially in `client/` and `server/` if `bun install` at root doesn't propagate):
+Run the following in the project root:
 ```bash
 bun install
 ```
 
-### Building the Client
-To compile the Zig code to Wasm and bundle the TypeScript client:
+### Building the Project
+The project uses a custom build script that compiles Zig to Wasm and bundles TypeScript for the browser.
 ```bash
 cd client
 bun run build
 ```
-This populates the `client/public/` directory with `index.html`, `index.js`, `worker.js`, and `main.wasm`.
+This will populate `client/public/` with the compiled assets for all demos.
 
 ### Running the Server
+The server requires SSL certificates in the `certs/` directory (`server.crt` and `server.key`).
 ```bash
 cd server
 bun run server.ts
 ```
-The server will be available at `http://localhost:8080`. It serves the static client files from `client/public/`.
+The application will be available at `https://localhost:8080`.
 
 ## Development Conventions
 
-- **Cross-Origin Isolation:** The server must set `Cross-Origin-Opener-Policy: same-origin` and `Cross-Origin-Embedder-Policy: require-corp` headers to enable `SharedArrayBuffer`.
-- **Typing:** Shared types are defined in `types.ts` files within both `client/` and `server/`.
-- **Performance:** High-frequency updates (like attempt counts) should avoid `postMessage` overhead and use `SharedArrayBuffer`/`Atomics` where possible.
-- **Service Pattern:** The server logic is organized into functional services (e.g., `useOrchestrator`, `useTelemetry`) found in `server/socket/services/`.
+- **Wasm Interop:** Prefer `SharedArrayBuffer` and `Atomics` for high-frequency data exchange between the main thread, workers, and Wasm memory.
+- **Zig:** Core performance logic is implemented in Zig. Each demo with Wasm has a `zig/` directory containing `main.zig` and `build.zig`.
+- **Typing:** Shared types between client and server (especially for Socket.io events) are defined in `types.ts` files.
+- **Service Pattern:** Server-side logic is encapsulated in "services" (e.g., `orchestrator.ts`, `telemetry.ts`) located in `server/socket/services/`.

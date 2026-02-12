@@ -4,6 +4,7 @@ import { createServer } from "http";
 import { Server as Engine } from "socket.io-bun";
 import * as path from "node:path";
 import { initSocket } from "./socket";
+import { readFileSync } from "fs";
 
 const app = express();
 const port = 8080;
@@ -11,11 +12,11 @@ const port = 8080;
 // Create HTTPS server
 
 const options = {
-    cert: Bun.file('../certs/server.crt'),
-    key: Bun.file('../certs/server.key');
-}
+  cert: readFileSync("../certs/server.crt"),
+  key: readFileSync("../certs/server.key"),
+};
 
-const httpServer = createServer(app);
+const httpServer = createServer(options, app);
 
 const io = new SocketIOServer(httpServer);
 const engine = new Engine();
