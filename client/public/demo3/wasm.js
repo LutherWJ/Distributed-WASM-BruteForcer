@@ -1,0 +1,1 @@
+async function i(s,t){let e=t||new WebAssembly.Memory({initial:1,maximum:10,shared:!0}),m={env:{memory:e}},n=await(await fetch(s)).arrayBuffer();return{instance:(await WebAssembly.instantiate(n,m)).instance,memory:e}}export{i as initWasm};

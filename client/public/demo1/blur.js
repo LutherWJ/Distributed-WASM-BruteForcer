@@ -1,0 +1,1 @@
+var T=(D,q,v,H,z)=>{for(let c=0;c<H;c++){let M=Math.max(0,c-z),N=Math.min(H-1,c+z);for(let j=0;j<v;j++){let P=Math.max(0,j-z),Q=Math.min(v-1,j+z),J=0,K=0,L=0,A=0;for(let E=M;E<=N;E++){let R=E*v;for(let F=P;F<=Q;F++){let G=(R+F)*4;J+=D[G],K+=D[G+1],L+=D[G+2],A++}}let B=(c*v+j)*4;q[B]=J/A,q[B+1]=K/A,q[B+2]=L/A,q[B+3]=255}}};export{T as jsBlur};

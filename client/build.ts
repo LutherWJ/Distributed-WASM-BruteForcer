@@ -49,9 +49,10 @@ async function build() {
 
     // 2. Build JS/TS
     console.log(`Building JS/TS...`);
-    const entryPoints = [];
-    if (await Bun.file(join(demoPath, "index.ts")).exists()) entryPoints.push(join(demoPath, "index.ts"));
-    if (await Bun.file(join(demoPath, "worker.ts")).exists()) entryPoints.push(join(demoPath, "worker.ts"));
+    const demoFiles = await readdir(demoPath, { withFileTypes: true });
+    const entryPoints = demoFiles
+      .filter((f) => f.isFile() && f.name.endsWith(".ts"))
+      .map((f) => join(demoPath, f.name));
 
     if (entryPoints.length > 0) {
       const result = await Bun.build({

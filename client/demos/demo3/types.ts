@@ -17,7 +17,11 @@ export type WorkerMessage =
       fftSize: number;
     }
   | { type: "init-bridge"; wasmMemory: WebAssembly.Memory }
-  | { type: "init-canvas"; canvas: OffscreenCanvas }
+  | {
+      type: "init-renderer";
+      wasmMemory: WebAssembly.Memory;
+      canvas: OffscreenCanvas;
+    }
   | { type: "analyze"; time: number }
   | { type: "draw" };
 

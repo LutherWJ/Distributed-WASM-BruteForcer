@@ -8,9 +8,9 @@ const useVisualizer = (options: VisualizerOptions) => {
   const analyzer: Worker = new Worker("./audioWorker.js");
   const renderer: Worker = new Worker("./renderer.js");
   
-  // Create shared Wasm memory (10 pages = 640KB, plenty for FFT)
+  // Create shared Wasm memory (100 pages = 6.4MB)
   const wasmMemory = new WebAssembly.Memory({
-    initial: 10,
+    initial: 100,
     maximum: 100,
     shared: true,
   });
@@ -27,8 +27,11 @@ const useVisualizer = (options: VisualizerOptions) => {
   // Canvas state
   const offscreen = canvas.transferControlToOffscreen();
 
-  renderer.postMessage({ type: "init-bridge", wasmMemory } as WorkerMessage);
-  renderer.postMessage({ type: "init-canvas", canvas: offscreen } as WorkerMessage, [offscreen]);
+  renderer.postMessage({ 
+    type: "init-renderer", 
+    wasmMemory, 
+    canvas: offscreen 
+  } as WorkerMessage, [offscreen]);
 
   const setup = async (buf: ArrayBuffer) => {
     audioBuf = await audioCtx.decodeAudioData(buf);
@@ -51,6 +54,9 @@ const useVisualizer = (options: VisualizerOptions) => {
 
   const play = () => {
     if (!audioBuf) return;
+    const startTime = audioCtx.currentTime;
+    console.log("Starting playback at relative time 0 (Context time:", startTime, ")");
+    
     sourceNode = audioCtx.createBufferSource();
     sourceNode.buffer = audioBuf;
     sourceNode.connect(audioCtx.destination);
@@ -62,9 +68,12 @@ const useVisualizer = (options: VisualizerOptions) => {
     const tick = () => {
       if (!isPlaying) return;
 
+      const relativeTime = audioCtx.currentTime - startTime;
+      if (Math.random() < 0.01) console.log("Tick - relative time:", relativeTime);
+
       analyzer.postMessage({
         type: "analyze",
-        time: audioCtx.currentTime,
+        time: relativeTime,
       } as WorkerMessage);
 
       renderer.postMessage({ type: "draw" } as WorkerMessage);

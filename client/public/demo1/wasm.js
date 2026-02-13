@@ -1,0 +1,1 @@
+var c=65536;function s(e){return Math.ceil(e/65536)}async function y(e,m,n){let t=s(m),a=n?s(n):t,r=new WebAssembly.Memory({initial:t,maximum:a,shared:!0}),o={env:{memory:r}},i=await(await fetch(e)).arrayBuffer();return{instance:(await WebAssembly.instantiate(i,o)).instance,memory:r}}export{y as initWasm,s as bytesToPages,c as PAGE_SIZE};
