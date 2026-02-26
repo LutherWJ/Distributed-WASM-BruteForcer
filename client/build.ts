@@ -33,7 +33,9 @@ async function build() {
       console.log(`Building Wasm...`);
       // Run zig build inside the zig directory
       try {
-        await $`cd ${zigPath} && zig build -Doptimize=ReleaseSmall`;
+        const buildCmd = `cd ${zigPath} && zig build -Doptimize=ReleaseSmall -- --import-memory-namespace env --import-memory-name memory`;
+        console.log("Executing:", buildCmd);
+        await $`${{ raw: buildCmd }}`;
         
         // Copy wasm file
         // Assuming standard location: zig/zig-out/bin/main.wasm

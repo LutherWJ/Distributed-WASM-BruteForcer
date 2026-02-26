@@ -7,6 +7,7 @@ declare var self: Worker;
 let ctx: OffscreenCanvasRenderingContext2D | null = null;
 let wasm: any;
 let wasmMemory: WebAssembly.Memory;
+let bridgeBuf: SharedArrayBuffer;
 let frameBuf: Uint8ClampedArray;
 
 self.onmessage = async (e: MessageEvent<WorkerMessage>) => {
@@ -15,9 +16,10 @@ self.onmessage = async (e: MessageEvent<WorkerMessage>) => {
       const context = await initWasm("./main.wasm", e.data.wasmMemory);
       wasm = context.instance.exports;
       wasmMemory = context.memory;
+      bridgeBuf = e.data.bridgeBuf;
 
       frameBuf = new Uint8ClampedArray(
-        wasmMemory.buffer,
+        bridgeBuf,
         MEMORY_MAP.FRAMEBUFFER_OFFSET,
         RENDER_CONFIG.HEIGHT * RENDER_CONFIG.WIDTH * 4, // data length
       );
@@ -28,8 +30,6 @@ self.onmessage = async (e: MessageEvent<WorkerMessage>) => {
     case "draw":
       if (!ctx || !wasm) return;
       await wasm.draw();
-
-      if (Math.random() < 0.01) console.log("Drawing frame...");
 
       // Must make a copy since the canvas cannot be given a pointer to shared memory.
       const pixels = new Uint8ClampedArray(frameBuf);

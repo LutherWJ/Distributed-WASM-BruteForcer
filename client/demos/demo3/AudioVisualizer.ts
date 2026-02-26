@@ -3,19 +3,28 @@ import { AUDIO_CONFIG } from "./constants";
 
 const useVisualizer = (options: VisualizerOptions) => {
   const { uploadInput, playBtn, canvas, staticFileUrl } = options;
+  playBtn.disabled = true; // Disable play button initially
 
   // Worker state
   const analyzer: Worker = new Worker("./audioWorker.js");
   const renderer: Worker = new Worker("./renderer.js");
-  
+
+  // Listen for messages from the analyzer worker
+  analyzer.onmessage = (e: MessageEvent<WorkerMessage>) => {
+    if (e.data.type === "analyzer-ready") {
+      playBtn.disabled = false;
+      console.log("Analyzer is ready. Playback enabled.");
+    }
+  };
+
   // Create shared Wasm memory (100 pages = 6.4MB)
   const wasmMemory = new WebAssembly.Memory({
     initial: 100,
     maximum: 100,
     shared: true,
   });
-  
-  // @ts-ignore - buffer is SharedArrayBuffer when shared: true
+
+  // @ts-ignore buffer is SharedArrayBuffer when shared: true
   const bridgeBuf: SharedArrayBuffer = wasmMemory.buffer;
 
   // Audio state
@@ -27,11 +36,15 @@ const useVisualizer = (options: VisualizerOptions) => {
   // Canvas state
   const offscreen = canvas.transferControlToOffscreen();
 
-  renderer.postMessage({ 
-    type: "init-renderer", 
-    wasmMemory, 
-    canvas: offscreen 
-  } as WorkerMessage, [offscreen]);
+  renderer.postMessage(
+    {
+      type: "init-renderer",
+      wasmMemory,
+      bridgeBuf,
+      canvas: offscreen,
+    } as WorkerMessage,
+    [offscreen],
+  );
 
   const setup = async (buf: ArrayBuffer) => {
     audioBuf = await audioCtx.decodeAudioData(buf);
@@ -47,6 +60,7 @@ const useVisualizer = (options: VisualizerOptions) => {
       type: "init-analyzer",
       audioBuffer: sab,
       wasmMemory,
+      bridgeBuf,
       sampleRate: audioBuf.sampleRate,
       fftSize: options.fftSize || AUDIO_CONFIG.DEFAULT_FFT_SIZE,
     } as WorkerMessage);
@@ -55,8 +69,12 @@ const useVisualizer = (options: VisualizerOptions) => {
   const play = () => {
     if (!audioBuf) return;
     const startTime = audioCtx.currentTime;
-    console.log("Starting playback at relative time 0 (Context time:", startTime, ")");
-    
+    console.log(
+      "Starting playback at relative time 0 (Context time:",
+      startTime,
+      ")",
+    );
+
     sourceNode = audioCtx.createBufferSource();
     sourceNode.buffer = audioBuf;
     sourceNode.connect(audioCtx.destination);
@@ -65,11 +83,26 @@ const useVisualizer = (options: VisualizerOptions) => {
     sourceNode.start();
     isPlaying = true;
 
+    // FPS measurement
+    let frameCount = 0;
+    let lastTime = performance.now();
+    const fpsDisplay = document.getElementById("fps-display");
+
     const tick = () => {
       if (!isPlaying) return;
 
+      const now = performance.now();
+      frameCount++;
+      if (now - lastTime >= 1000) {
+        const fps = Math.round((frameCount * 1000) / (now - lastTime));
+        if (fpsDisplay) fpsDisplay.textContent = `FPS: ${fps}`;
+        frameCount = 0;
+        lastTime = now;
+      }
+
       const relativeTime = audioCtx.currentTime - startTime;
-      if (Math.random() < 0.01) console.log("Tick - relative time:", relativeTime);
+      if (Math.random() < 0.01)
+        console.log("Tick - relative time:", relativeTime);
 
       analyzer.postMessage({
         type: "analyze",
@@ -90,8 +123,18 @@ const useVisualizer = (options: VisualizerOptions) => {
   });
 
   playBtn.addEventListener("click", () => {
-    if (audioCtx.state === "suspended") audioCtx.resume();
-    isPlaying ? (sourceNode?.stop(), (isPlaying = false)) : play();
+    if (audioCtx.state === "suspended") {
+      audioCtx.resume();
+    }
+
+    if (isPlaying) {
+      sourceNode?.stop();
+      isPlaying = false;
+      playBtn.textContent = "Play";
+    } else if (audioBuf) {
+      play();
+      playBtn.textContent = "Pause";
+    }
   });
 
   // Support Static Files

@@ -1,6 +1,6 @@
 import express from "express";
 import { Server as SocketIOServer } from "socket.io";
-import { createServer } from "http";
+import { createServer } from "https";
 import { Server as Engine } from "socket.io-bun";
 import * as path from "node:path";
 import { initSocket } from "./socket";
@@ -10,7 +10,6 @@ const app = express();
 const port = 8080;
 
 // Create HTTPS server
-
 const options = {
   cert: readFileSync("../certs/server.crt"),
   key: readFileSync("../certs/server.key"),
@@ -35,5 +34,5 @@ const index = path.resolve(__dirname, "./../client/public");
 app.use("/", express.static(index));
 
 httpServer.listen(port, () => {
-  console.log(`Server running on port ${port}`);
+  console.log(`Server running on https://localhost:${port}`);
 });

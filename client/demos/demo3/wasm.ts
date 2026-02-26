@@ -18,6 +18,8 @@ export async function initWasm(
   const importObject = {
     env: {
       memory: wasmMemory,
+      log_u32: (value: number) => console.log(`[WASM fft_size]`, value),
+      log_f32: (value: number) => console.log(`[WASM f32 val]`, value),
     },
   };
 

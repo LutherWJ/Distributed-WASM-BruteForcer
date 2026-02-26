@@ -13,13 +13,14 @@ export type WorkerMessage =
       type: "init-analyzer";
       audioBuffer: SharedArrayBuffer;
       wasmMemory: WebAssembly.Memory;
+      bridgeBuf: SharedArrayBuffer;
       sampleRate: number;
       fftSize: number;
     }
-  | { type: "init-bridge"; wasmMemory: WebAssembly.Memory }
   | {
       type: "init-renderer";
       wasmMemory: WebAssembly.Memory;
+      bridgeBuf: SharedArrayBuffer;
       canvas: OffscreenCanvas;
     }
   | { type: "analyze"; time: number }

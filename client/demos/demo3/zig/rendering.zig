@@ -1,88 +1,84 @@
 const std = @import("std");
 const MemoryMap = @import("main.zig").MemoryMap;
 
-// Color helper
+// Color helper: RGBA in memory order (Little Endian u32: 0xAABBGGRR)
 fn color(r: u8, g: u8, b: u8, a: u8) u32 {
     return (@as(u32, a) << 24) | (@as(u32, b) << 16) | (@as(u32, g) << 8) | @as(u32, r);
 }
 
-pub fn draw() void {
-    const width = MemoryMap.FB_WIDTH;
-    const height = MemoryMap.FB_HEIGHT;
-    
-    // Pointers
-    const metadata: *MemoryMap.Metadata = @ptrFromInt(MemoryMap.METADATA_OFFSET);
-    const fft_data: [*]allowzero f32 = @ptrFromInt(MemoryMap.FFT_OUTPUT_OFFSET);
-    const framebuffer: [*]allowzero u32 = @ptrFromInt(MemoryMap.FRAMEBUFFER_OFFSET);
-    
-    const fft_size = metadata.fft_size;
-    const time = metadata.current_time;
-    
-    // Clear screen (Dark Blue-ish Black for visibility)
-    const fb_slice = framebuffer[0..width*height];
-    if (fft_size == 0) {
-        @memset(fb_slice, color(255, 0, 0, 255)); // Red screen if no metadata
-        return;
-    }
-    @memset(fb_slice, color(10, 10, 30, 255));
+const NUM_BARS = 64;
+const BAR_GAP = 4;
+const MAX_MAGNITUDE: f32 = 0.8; 
 
-    // Heartbeat Dot: White dot moving at the top
-    const dot_x = @as(usize, @intFromFloat(@mod(time * 50.0, @as(f32, @floatFromInt(width)))));
-    var dx: usize = 0;
-    while (dx < 10) : (dx += 1) {
-        var dy: usize = 0;
-        while (dy < 10) : (dy += 1) {
-            const px = dot_x + dx;
-            if (px < width) {
-                framebuffer[(20 + dy) * width + px] = color(255, 255, 255, 255);
-            }
-        }
-    }
+pub fn draw() void {
+    const metadata: *MemoryMap.Metadata = @ptrFromInt(MemoryMap.METADATA_OFFSET);
+    const fft_size = metadata.fft_size;
+    const num_bins = fft_size / 2;
+    const fft_output: [*]f32 = @ptrFromInt(MemoryMap.FFT_OUTPUT_OFFSET);
+
+    const raw_buf: [*]u32 = @ptrFromInt(MemoryMap.FRAMEBUFFER_OFFSET);
+    const buf_len = MemoryMap.FB_WIDTH * MemoryMap.FB_HEIGHT;
+    const frame_buf: []u32 = raw_buf[0..buf_len];
+
+    // 1. Clear background (Deep dark blue)
+    @memset(frame_buf, color(5, 5, 15, 255));
+
+    // 2. Calculate bar dimensions
+    const total_gap_width = (NUM_BARS - 1) * BAR_GAP;
+    const available_width = if (MemoryMap.FB_WIDTH > total_gap_width) MemoryMap.FB_WIDTH - total_gap_width else 0;
+    const bar_width = available_width / NUM_BARS;
     
-    // Configuration
-    const num_bars: usize = 64;
-    const bar_width: usize = 10;
-    const gap: usize = 2; 
-    const total_bar_width = bar_width + gap;
-    
-    const usable_bins = fft_size / 2;
-    const bins_per_bar = usable_bins / num_bars;
-    
-    const total_viz_width = num_bars * total_bar_width; 
-    const x_offset = (width - total_viz_width) / 2; 
-    
-    var i: usize = 0;
-    while (i < num_bars) : (i += 1) {
+    // We want to center the visualizer
+    const actual_total_width = NUM_BARS * bar_width + total_gap_width;
+    const x_offset = (MemoryMap.FB_WIDTH - actual_total_width) / 2;
+
+    const bins_per_bar = @as(f32, @floatFromInt(num_bins)) / @as(f32, @floatFromInt(NUM_BARS));
+
+    for (0..NUM_BARS) |i| {
+        // Linear mapping for now, but we could use log here for a better feel
+        const start_bin = @as(usize, @intFromFloat(@as(f32, @floatFromInt(i)) * bins_per_bar));
+        const end_bin = @as(usize, @intFromFloat(@as(f32, @floatFromInt(i + 1)) * bins_per_bar));
+        
         var sum: f32 = 0;
-        var j: usize = 0;
-        const group_size = if (bins_per_bar > 0) bins_per_bar else 1;
-        
-        while (j < group_size) : (j += 1) {
-             const idx = i * group_size + j;
-             if (idx < usable_bins) {
-                sum += fft_data[idx];
-             }
+        var count: f32 = 0;
+        const actual_end = if (end_bin > num_bins) num_bins else end_bin;
+        for (start_bin..actual_end) |bin_idx| {
+            sum += fft_output[bin_idx];
+            count += 1;
         }
-        const avg = sum / @as(f32, @floatFromInt(group_size));
         
-        // Boost the signal significantly for visibility
-        var bar_height: usize = @intFromFloat(avg * 1000.0); 
-        if (bar_height > height) bar_height = height;
-        if (bar_height < 2) bar_height = 2; // Always show at least a tiny sliver if music is playing
+        const avg = if (count > 0) sum / count else 0;
         
-        const x_start = x_offset + (i * total_bar_width);
+        // Intensity scaling (Logarithmic to match human hearing better)
+        const intensity = std.math.log10(1.0 + avg * 1000.0) / 2.0;
+        var h_ratio = intensity / MAX_MAGNITUDE;
+        if (h_ratio > 1.0) h_ratio = 1.0;
+        if (h_ratio < 0.0) h_ratio = 0.0;
+
+        const max_h = @as(f32, @floatFromInt(MemoryMap.FB_HEIGHT - 40));
+        const bar_height = @as(usize, @intFromFloat(h_ratio * max_h));
         
-        var y: usize = 0;
-        while (y < bar_height) : (y += 1) {
-             const py = height - 1 - y;
-             const g = @as(u8, @intCast(@min(255, y * 2)));
-             const bar_color = color(g, 255, 0, 255);
-             
-             var px: usize = 0;
-             while (px < bar_width) : (px += 1) {
-                 const pixel_idx = py * width + (x_start + px);
-                 framebuffer[pixel_idx] = bar_color; 
-             }
+        const x_start = x_offset + i * (bar_width + BAR_GAP);
+        
+        // Draw the bar with a nice gradient (Cyan to Purple)
+        for (0..bar_height) |h| {
+            const y = MemoryMap.FB_HEIGHT - 20 - h;
+            if (y >= MemoryMap.FB_HEIGHT) continue;
+
+            const t = @as(f32, @floatFromInt(h)) / max_h;
+            
+            // Color interpolation
+            const r = @as(u8, @intFromFloat(50.0 + t * 205.0));
+            const g = @as(u8, @intFromFloat(200.0 * (1.0 - t)));
+            const b = 255;
+            const bar_color = color(r, g, b, 255);
+
+            for (0..bar_width) |bw| {
+                const x = x_start + bw;
+                if (x < MemoryMap.FB_WIDTH) {
+                    frame_buf[y * MemoryMap.FB_WIDTH + x] = bar_color;
+                }
+            }
         }
     }
 }

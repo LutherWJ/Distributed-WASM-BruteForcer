@@ -23,8 +23,9 @@ pub fn build(b: *std.Build) void {
     exe.rdynamic = true;
     
     exe.import_memory = true;
-    exe.initial_memory = 3276800; // ~3.2MB (50 pages * 64KB)
-    exe.max_memory = 4294967296;
+    // initial_memory is in bytes. 100 pages * 64KB = 6.4MB = 6,553,600 bytes
+    exe.initial_memory = 6553600; 
+    exe.max_memory = 6553600;
     exe.shared_memory = true;
 
     b.installArtifact(exe);
