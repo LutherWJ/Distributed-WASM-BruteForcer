@@ -66,17 +66,11 @@
   <body>
     <div class="card">
       <h1 style="margin-top: 0; margin-bottom: 1rem;">WASM vs JS Image Blur Benchmark</h1>
-      
       <div class="grid">
         <!-- Controls & Source -->
         <div class="column">
           <h2>1. Configuration</h2>
           <div class="controls">
-            <div>
-              <label for="image-upload" style="display: block; margin-bottom: 0.5rem; font-weight: 500;">Upload Image</label>
-              <input type="file" id="image-upload" accept="image/*" />
-            </div>
-
             <div>
               <label for="blur-radius" style="display: block; margin-bottom: 0.5rem; font-weight: 500;">Blur Radius: <span id="radius-value">5</span>px</label>
               <input type="range" id="blur-radius" min="1" max="50" value="5" style="width: 100%;" />
@@ -101,6 +95,7 @@
           <h2>3. WebAssembly</h2>
           <div id="wasm-stats" class="stat-box">Ready</div>
           <canvas id="wasm-canvas"></canvas>
+      <h5 style="color: grey;">Note: WASM needs to warm up, first run will yield similar results</h5>
         </div>
       </div>
     </div>

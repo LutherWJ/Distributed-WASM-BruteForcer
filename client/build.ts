@@ -33,7 +33,7 @@ async function build() {
       console.log(`Building Wasm...`);
       // Run zig build inside the zig directory
       try {
-        const buildCmd = `cd ${zigPath} && zig build -Doptimize=ReleaseSmall -- --import-memory-namespace env --import-memory-name memory`;
+        const buildCmd = `cd ${zigPath} && zig build -Doptimize=ReleaseFast -- --import-memory-namespace env --import-memory-name memory`;
         console.log("Executing:", buildCmd);
         await $`${{ raw: buildCmd }}`;
         
@@ -71,10 +71,12 @@ async function build() {
       console.log(`JS/TS built.`);
     }
 
-    // 3. Copy index.html
-    if (await Bun.file(join(demoPath, "index.html")).exists()) {
-      await cp(join(demoPath, "index.html"), join(demoOutputPath, "index.html"));
-      console.log(`Copied index.html.`);
+    // 3. Copy all files (excluding subdirectories)
+    for (const file of demoFiles) {
+      if (file.isFile()) {
+        await cp(join(demoPath, file.name), join(demoOutputPath, file.name));
+        console.log(`Copied ${file.name}.`);
+      }
     }
   }
 
