@@ -9,11 +9,13 @@ import useVisualizer from "./AudioVisualizer";
     "visualizer-canvas",
   ) as HTMLCanvasElement;
   const playBtn = document.getElementById("play-btn") as HTMLButtonElement;
+  const micBtn = document.getElementById("mic-btn") as HTMLButtonElement;
 
   const options: VisualizerOptions = {
     uploadInput,
     canvas,
     playBtn,
+    micBtn,
   };
 
   useVisualizer(options);

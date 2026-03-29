@@ -2,6 +2,7 @@ import useVisualizer from "./AudioVisualizer";
 
 export type VisualizerOptions = {
   uploadInput?: HTMLInputElement;
+  micBtn: HTMLButtonElement;
   playBtn: HTMLButtonElement;
   canvas: HTMLCanvasElement;
   staticFileUrl?: string;
@@ -11,7 +12,7 @@ export type VisualizerOptions = {
 export type WorkerMessage =
   | {
       type: "init-analyzer";
-      audioBuffer: SharedArrayBuffer;
+      audioBuffer?: SharedArrayBuffer;
       wasmMemory: WebAssembly.Memory;
       bridgeBuf: SharedArrayBuffer;
       sampleRate: number;
@@ -24,6 +25,7 @@ export type WorkerMessage =
       canvas: OffscreenCanvas;
     }
   | { type: "analyze"; time: number }
+  | { type: "analyze-realtime"; samples: Float32Array; time?: number }
   | { type: "draw" };
 
 export type Visualizer = ReturnType<typeof useVisualizer>;

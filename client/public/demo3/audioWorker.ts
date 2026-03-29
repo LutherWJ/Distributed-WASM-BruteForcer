@@ -17,7 +17,9 @@ self.onmessage = async (e: MessageEvent<WorkerMessage>) => {
   const data = e.data;
   switch (data.type) {
     case "init-analyzer":
-      inBuf = new Float32Array(data.audioBuffer);
+      if (data.audioBuffer) {
+        inBuf = new Float32Array(data.audioBuffer);
+      }
       sampleRate = data.sampleRate;
       fftSize = data.fftSize;
       bridgeBuf = data.bridgeBuf;
@@ -58,6 +60,30 @@ self.onmessage = async (e: MessageEvent<WorkerMessage>) => {
         MEMORY_MAP.METADATA_SIZE,
       );
       metaView.setFloat32(META_OFFSETS.CURRENT_TIME, data.time, true);
+
+      wasm.fft();
+      break;
+
+    case "analyze-realtime":
+      if (!wasm || !bridgeBuf) return;
+
+      const realTimeInput = new Float32Array(
+        bridgeBuf,
+        MEMORY_MAP.FFT_INPUT_OFFSET,
+        fftSize,
+      );
+      realTimeInput.set(data.samples);
+
+      // Update current time in metadata
+      const rtMetaView = new DataView(
+        bridgeBuf,
+        MEMORY_MAP.METADATA_OFFSET,
+        MEMORY_MAP.METADATA_SIZE,
+      );
+      // We'll need to pass time from the message
+      if ("time" in data) {
+        rtMetaView.setFloat32(META_OFFSETS.CURRENT_TIME, (data as any).time, true);
+      }
 
       wasm.fft();
       break;

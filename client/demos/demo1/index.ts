@@ -17,6 +17,12 @@ const wasmCtx = wasmCanvas.getContext("2d")!;
 const jsStats = document.getElementById("js-stats")!;
 const wasmStats = document.getElementById("wasm-stats")!;
 
+// Reusable Shared Buffers & ImageData to avoid allocation overhead during benchmark
+let jsInputBuffer: SharedArrayBuffer | null = null;
+let jsOutputBuffer: SharedArrayBuffer | null = null;
+let jsResultImageData: ImageData | null = null;
+let wasmResultImageData: ImageData | null = null;
+
 // Workers
 const jsWorker = new Worker("./worker.js", { type: "module" });
 const wasmWorker = new Worker("./wasmWorker.js", { type: "module" });
@@ -30,7 +36,6 @@ const handleWorkerError =
   };
 jsWorker.onerror = handleWorkerError("JS Worker", jsStats);
 wasmWorker.onerror = handleWorkerError("WASM Worker", wasmStats);
-
 
 // Initialize wasm Module
 const bytesToPages = (bytes: number): number => {
@@ -83,6 +88,9 @@ img.onload = () => {
 
   jsStats.textContent = "Ready";
   wasmStats.textContent = "Ready";
+
+  jsResultImageData = null;
+  wasmResultImageData = null;
 };
 img.src = "demo1.jpg";
 
@@ -113,10 +121,12 @@ const runBenchmark = async () => {
 
   const imageData = sourceCtx.getImageData(0, 0, width, height);
 
-  // JS Buffers
-  const jsInputBuffer = new SharedArrayBuffer(size);
+  // JS Buffers (reused if size hasn't changed)
+  if (!jsInputBuffer || jsInputBuffer.byteLength < size) {
+    jsInputBuffer = new SharedArrayBuffer(size);
+    jsOutputBuffer = new SharedArrayBuffer(size);
+  }
   new Uint8ClampedArray(jsInputBuffer).set(imageData.data);
-  const jsOutputBuffer = new SharedArrayBuffer(size);
 
   // WASM zero-copy setup
   const requiredMemory = size * 2;
@@ -128,47 +138,43 @@ const runBenchmark = async () => {
   const wasmInputView = new Uint8ClampedArray(wasmMemory.buffer, 0, size);
   wasmInputView.set(imageData.data);
 
+  // Reusable ImageData for rendering
+  if (!jsResultImageData || jsResultImageData.width !== width || jsResultImageData.height !== height) {
+      jsResultImageData = new ImageData(width, height);
+      wasmResultImageData = new ImageData(width, height);
+  }
+
   const runWorker = (
     worker: Worker,
     runtime: "js" | "wasm",
     outBuffer: SharedArrayBuffer | ArrayBuffer,
     ctx: CanvasRenderingContext2D,
     statEl: HTMLElement,
+    targetImageData: ImageData
   ): Promise<void> => {
     return new Promise((resolve) => {
-      const start = performance.now();
-
       const handleMessage = (e: MessageEvent) => {
         if (e.data.result === "done") {
-          const durationNum = e.data.duration; // Use worker-side duration
+          const durationNum = e.data.duration;
           const durationStr = durationNum.toFixed(1);
 
-          // Calculate MP/s
           const pixels = width * height;
           const seconds = durationNum / 1000;
           const mps =
             seconds > 0 ? (pixels / seconds / 1_000_000).toFixed(2) : "N/A";
 
-          // Render Result
           let sharedResultView: Uint8ClampedArray;
           if (runtime === "wasm") {
-              const outputOffset = size;
-              sharedResultView = new Uint8ClampedArray(outBuffer, outputOffset, size);
+              sharedResultView = new Uint8ClampedArray(outBuffer, size, size);
           } else {
               sharedResultView = new Uint8ClampedArray(outBuffer);
           }
 
-          // ImageData does NOT support SharedArrayBuffer, so we must perform one copy here
-          const nonSharedArray = new Uint8ClampedArray(sharedResultView);
-          const resultImageData = new ImageData(
-            nonSharedArray,
-            width,
-            height,
-          );
-          ctx.putImageData(resultImageData, 0, 0);
+          targetImageData.data.set(sharedResultView);
+          ctx.putImageData(targetImageData, 0, 0);
 
           statEl.innerHTML = `${durationStr}ms<br><span style="font-size:0.9em; color:#666;">${mps} MP/s</span>`;
-          statEl.style.color = "#006600"; // dark green
+          statEl.style.color = "#006600";
 
           worker.removeEventListener("message", handleMessage);
           resolve();
@@ -176,7 +182,7 @@ const runBenchmark = async () => {
           statEl.textContent = `Error: ${e.data.error}`;
           statEl.style.color = "red";
           worker.removeEventListener("message", handleMessage);
-          resolve(); // Resolve anyway to not hang the group
+          resolve();
         }
       };
 
@@ -195,7 +201,7 @@ const runBenchmark = async () => {
           worker.postMessage({
             runtime,
             inputBuffer: jsInputBuffer,
-            outputBuffer: outBuffer,
+            outputBuffer: jsOutputBuffer,
             width,
             height,
             radius,
@@ -206,8 +212,8 @@ const runBenchmark = async () => {
 
   // Execute in Parallel
   await Promise.all([
-    runWorker(jsWorker, "js", jsOutputBuffer, jsCtx, jsStats),
-    runWorker(wasmWorker, "wasm", wasmMemory.buffer, wasmCtx, wasmStats),
+    runWorker(jsWorker, "js", jsOutputBuffer!, jsCtx, jsStats, jsResultImageData!),
+    runWorker(wasmWorker, "wasm", wasmMemory.buffer, wasmCtx, wasmStats, wasmResultImageData!),
   ]);
 
 

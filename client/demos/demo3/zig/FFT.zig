@@ -6,7 +6,6 @@ const Complex = std.math.Complex(f32);
 pub fn fft() void {
     const metadata: *MemoryMap.Metadata = @ptrFromInt(MemoryMap.METADATA_OFFSET);
     const fft_size = metadata.fft_size;
-    interface.log_u32(fft_size);
 
     // Ensure fft_size is within bounds and a power of 2
     if (fft_size > MemoryMap.FFT_INPUT_MAX_SAMPLES or fft_size < 2 or (fft_size & (fft_size - 1)) != 0) {
@@ -16,10 +15,6 @@ pub fn fft() void {
     const input: [*]allowzero f32 = @ptrFromInt(MemoryMap.FFT_INPUT_OFFSET);
     const output: [*]f32 = @ptrFromInt(MemoryMap.FFT_OUTPUT_OFFSET);
     const scratch: [*]Complex = @ptrFromInt(MemoryMap.SCRATCHPAD_OFFSET);
-
-    for (0..8) |i| {
-        interface.log_f32(input[i]);
-    }
 
     // 1. Copy input to scratch as complex numbers and apply a Hann window
     for (0..fft_size) |i| {
@@ -75,9 +70,5 @@ pub fn fft() void {
         // Restore a less aggressive normalization
         const mag = std.math.sqrt(re * re + im * im) / @as(f32, @floatFromInt(fft_size));
         output[i] = mag;
-    }
-
-    for (0..8) |i| {
-        interface.log_f32(output[i]);
     }
 }
