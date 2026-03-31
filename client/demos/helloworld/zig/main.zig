@@ -1,17 +1,16 @@
 const std = @import("std");
 
 const allocator = std.heap.page_allocator;
-var str_ptr: *[]const u8 = undefined;
+var str_ptr: [*]const u8 = undefined;
 
 export fn main() usize {
     const str = "Hello World";
-    const mem = try allocator.create(u8, str.len);
+    const mem = allocator.alloc(u8, str.len) catch return 0;
     @memcpy(mem, str);
-
-    str_ptr = &str;
+    str_ptr = @ptrCast(&str);
     return str.len;
 }
 
-export fn getOutAddress() usize {
+export fn getOutAddress() [*]const u8 {
     return str_ptr;
 }

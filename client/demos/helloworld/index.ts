@@ -46,7 +46,7 @@ async function initWasm(urlToWasmFile: string): Promise<WasmContext> {
 
 (async () => {
     // Initialize the WASM environment 
-    const url = "program.wasm";
+    const url = "main.wasm";
     const ctx = await initWasm(url);
 
     // Create a "view" into the memory.
@@ -60,7 +60,7 @@ async function initWasm(urlToWasmFile: string): Promise<WasmContext> {
     // Run the hello world function
     const length = ctx.instance.exports.hello();
 
-    // Read the output from memory.
+   // Read the output from memory.
     const str = memView.slice(address, address + length).toString();
     console.log(str);
 })();

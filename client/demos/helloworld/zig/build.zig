@@ -1,0 +1,24 @@
+const std = @import("std");
+
+pub fn build(b: *std.Build) void {
+    const target = b.resolveTargetQuery(.{
+        .cpu_arch = .wasm32,
+        .os_tag = .freestanding,
+    });
+
+    const optimize = b.standardOptimizeOption(.{});
+
+    const exe = b.addExecutable(.{
+        .name = "main",
+        .root_source_file = b.path("main.zig"),
+        .target = target,
+        .optimize = optimize,
+    });
+
+    exe.out_filename = "main.wasm";
+    exe.entry = .disabled;
+    exe.rdynamic = true;
+    exe.import_memory = true;
+
+    b.installArtifact(exe);
+}
