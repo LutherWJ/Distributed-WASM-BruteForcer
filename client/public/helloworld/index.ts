@@ -13,7 +13,7 @@ function bytesToPages(bytes: number): number {
 
 async function initWasm(urlToWasmFile: string): Promise<WasmContext> {
     // Initialize the memory available to the WASM environment.
-    const initMem = 64 * 1024; // 64KiB
+    const initMem = 17 * 64 * 1024; // 1.1MiB (17 pages)
     const maxMem = 2 * 1024 * 1024; // 2MiB
 
     const wasmMemory = new WebAssembly.Memory({
@@ -49,18 +49,23 @@ async function initWasm(urlToWasmFile: string): Promise<WasmContext> {
     const url = "main.wasm";
     const ctx = await initWasm(url);
 
+    // Run the hello world function
+    const length = ctx.instance.exports.hello();
+
+    // Get the memory address of the output
+    const address = ctx.instance.exports.getOutAddress();
+
     // Create a "view" into the memory.
     // Uint8ClampedArray is a simple wrapper object that
     // gives us helpful methods for reading the memory.
     const memView = new Uint8ClampedArray(ctx.memory.buffer);
 
-    // Get the memory address of the output
-    const address = ctx.instance.exports.getOutAddress();
-
-    // Run the hello world function
-    const length = ctx.instance.exports.hello();
-
    // Read the output from memory.
-    const str = memView.slice(address, address + length).toString();
+    const buf = memView.slice(address, address + length);
+    console.log(`Raw bytes: ${buf}`);
+
+    // Decode buffer into text
+    const decoder = new TextDecoder("utf-8");
+    const str = decoder.decode(buf);
     console.log(str);
 })();

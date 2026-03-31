@@ -1,16 +1,29 @@
 const std = @import("std");
 
-const allocator = std.heap.page_allocator;
-var str_ptr: [*]const u8 = undefined;
+// Use the standard WASM allocator
+const allocator = std.heap.wasm_allocator;
 
-export fn main() usize {
-    const str = "Hello World";
-    const mem = allocator.alloc(u8, str.len) catch return 0;
-    @memcpy(mem, str);
-    str_ptr = @ptrCast(&str);
-    return str.len;
+var str_ptr: [*]u8 = undefined;
+var str_len: usize = 0;
+
+export fn hello() usize {
+    const message = "Hello World!";
+
+    // Allocate memory on the WASM heap
+    const buffer = allocator.alloc(u8, message.len) catch return 0;
+    @memcpy(buffer, message);
+
+    str_ptr = buffer.ptr;
+    str_len = buffer.len;
+
+    return str_len;
 }
 
-export fn getOutAddress() [*]const u8 {
+export fn getOutAddress() [*]u8 {
     return str_ptr;
+}
+
+// Reconstruct the slice from the pointer and length to free it
+export fn freeHello() void {
+    allocator.free(str_ptr[0..str_len]);
 }
